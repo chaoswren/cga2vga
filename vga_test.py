@@ -4,6 +4,7 @@ from array import array
 from uctypes import addressof
 
 fclock=125000000 #clock frequency
+vsync_delay=520 #525 lines total, counting porches & blanking intervals
 
 #DMA address constants
 DMA_BASE=0x50000000
@@ -34,4 +35,12 @@ def vsync():
     set(pins,1)
     label("countloop")
     jmp(x_dec, "countloop") #jump X != 0, post-decrement
-    jmp(always, "pulse")
+    jmp("pulse")
+    
+vsync_sm = StateMachine(0, vsync, freq=31469, set_base=Pin(17))
+
+vsync_sm.active(0)
+vsync_sm.put(vsync_delay)
+vsync_sm.exec("pull()")
+vsync_sm.exec("mov(isr,osr)")
+vsync_sm.active(1)

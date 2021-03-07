@@ -4,9 +4,9 @@ from array import array
 from uctypes import addressof
 
 fclock=125000000 #clock frequency
-vsync_delay=520 #525 lines total, counting porches & blanking intervals
+vsync_delay=487 #525 lines total, counting porches & blanking intervals
 line_width=800 #640x480 has 800 columns
-line_count=525
+line_count=524
 
 #DMA address constants
 DMA_BASE=0x50000000
@@ -26,33 +26,39 @@ PIO0_TXF0      =PIO0_BASE+0x10
 PIO0_SM0_CLKDIV=PIO0_BASE+0xc8
 
 #vsync state machine
-#ISR should be set to 5 less than desired line count
+#ISR should be set to 38 less than desired line count
 @asm_pio(sideset_init=PIO.OUT_HIGH)
 def vsync():
     label("pulse")
     mov(x, y)       .side(0) [1] #reset counter and start pulse
-    irq(4)          .side(1)     #raise irq to signal hsync sm
+    nop()           .side(1) [7] #raise irq to signal hsync sm
+    nop()                    [7]
+    nop()                    [7]
+    nop()                    [7]
+    nop()
+    irq(4)
     label("countloop")
     jmp(x_dec, "countloop")      #jump X != 0, post-decrement
     jmp("pulse")
 
 #hsync state machine
-#x stores current line
 #y stores total lines
-@asm_pio(sideset_init=PIO.OUT_HIGH)
+#x stores current line 
+@asm_pio(set_init=PIO.OUT_HIGH)
 def hsync():
     mov(y,isr)
     label("frame_start")
     wait(1, irq, 4)                 #wait for vsync
     label("sync_pulse")
-    nop()              .side(0) [5]
-    nop()              .side(1) [5]
+    set(pins,0)                 [5]
+    set(pins,1)                 [31]
+    nop()                       [10]
     jmp(x_dec, "sync_pulse")
     mov(x,y)                        #reset line counter
     jmp("frame_start")
     
 vsync_sm = StateMachine(0, vsync, freq=31469, sideset_base=Pin(17)) #run at line freq
-hsync_sm = StateMachine(1, hsync, freq=1573438, sideset_base=Pin(16)) #run at 1/16 pixel clock
+hsync_sm = StateMachine(1, hsync, freq=1573438, set_base=Pin(16)) #run at 1/16 pixel clock
 
 vsync_sm.active(0)
 vsync_sm.put(vsync_delay)
